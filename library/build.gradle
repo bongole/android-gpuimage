@@ -3,7 +3,6 @@ apply plugin: 'com.novoda.bintray-release'
 
 android {
     compileSdkVersion COMPILE_SDK_VERSION as int
-    buildToolsVersion BUILD_TOOLS_VERSION
 
     defaultConfig {
         minSdkVersion MIN_SDK_VERSION as int
@@ -13,13 +12,6 @@ android {
         versionName VERSION_NAME
 
         consumerProguardFiles 'proguard-rules.txt'
-
-        ndk {
-            moduleName "gpuimage-library"
-            stl "gnustl_shared"
-            abiFilters "all"
-            ldLibs "log"
-        }
     }
 
     sourceSets {
@@ -31,15 +23,20 @@ android {
             renderscript.srcDirs = ['src']
             res.srcDirs = ['res']
             assets.srcDirs = ['assets']
-            jni.srcDirs = ['jni']
         }
+    }
 
-        instrumentTest.setRoot('tests')
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
     }
 
     lintOptions {
         abortOnError false
     }
+
+    buildToolsVersion '27.0.3'
 }
 
 task androidJavadocs(type: Javadoc) {
