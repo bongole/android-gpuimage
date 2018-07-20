@@ -139,6 +139,10 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         }
 
         for ( GPUImageFilter filter : mFilters ){
+            if( !filter.isInitialized() ){
+                filter.init();
+            }
+
             filter.onOutputSizeChanged(width, height);
         }
 
@@ -191,6 +195,11 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         int w = getOutputWidth();
         int h = getOutputHeight();
         for ( GPUImageFilter filter : mFilters ){
+             if( !filter.isInitialized() ){
+                filter.init();
+                filter.onOutputSizeChanged(w, h);
+            }
+
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameBuffers[ i % 2 ]);
             GLES20.glClearColor(0, 0, 0, 0);
             GLES20.glViewport(0, 0, w, h);
