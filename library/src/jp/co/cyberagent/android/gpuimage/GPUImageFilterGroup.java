@@ -209,7 +209,7 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glViewport(0, 0, w, h);
 
-        super.onDraw(previousTexture, cubeBuffer, textureBuffer);
+        super.onDraw(previousTexture, mGLCubeBuffer, mGLTextureBuffer);
      }
 
     /**
