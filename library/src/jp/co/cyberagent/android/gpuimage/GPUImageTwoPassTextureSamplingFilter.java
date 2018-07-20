@@ -18,8 +18,6 @@ package jp.co.cyberagent.android.gpuimage;
 
 import android.opengl.GLES20;
 
-import java.util.List;
-
 public class GPUImageTwoPassTextureSamplingFilter extends GPUImageTwoPassFilter {
     public GPUImageTwoPassTextureSamplingFilter(String firstVertexShader, String firstFragmentShader,
                                                 String secondVertexShader, String secondFragmentShader) {
@@ -35,15 +33,14 @@ public class GPUImageTwoPassTextureSamplingFilter extends GPUImageTwoPassFilter 
 
     protected void initTexelOffsets() {
         float ratio = getHorizontalTexelOffsetRatio();
-        List<GPUImageFilter> filters = getFilters();
-        GPUImageFilter filter = filters.get(0);
+        GPUImageFilter filter = mFilters.get(0);
         int texelWidthOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(), "texelWidthOffset");
         int texelHeightOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(), "texelHeightOffset");
         filter.setFloat(texelWidthOffsetLocation, ratio / mOutputWidth);
         filter.setFloat(texelHeightOffsetLocation, 0);
 
         ratio = getVerticalTexelOffsetRatio();
-        filter = filters.get(1);
+        filter = mFilters.get(1);
         texelWidthOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(), "texelWidthOffset");
         texelHeightOffsetLocation = GLES20.glGetUniformLocation(filter.getProgram(), "texelHeightOffset");
         filter.setFloat(texelWidthOffsetLocation, 0);
