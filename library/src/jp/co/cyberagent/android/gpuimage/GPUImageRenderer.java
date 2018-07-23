@@ -50,7 +50,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
             1.0f, 1.0f,
     };
 
-    private GPUImageFilter mFilter;
+    private GPUImageFilterGroup mFilterGroup;
 
     public final Object mSurfaceChangedWaiter = new Object();
 
@@ -78,7 +78,10 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
     private float mBackgroundBlue = 0;
 
     public GPUImageRenderer(final GPUImageFilter filter) {
-        mFilter = filter;
+        mFilterGroup = new GPUImageFilterGroup();
+        mFilterGroup.addFilter(filter);
+        mFilterGroup.addFilter(new GPUImageVFlipFilter());
+
         mRunOnDraw = new LinkedList<Runnable>();
         mRunOnDrawEnd = new LinkedList<Runnable>();
 
@@ -97,7 +100,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
     public void onSurfaceCreated(final GL10 unused, final EGLConfig config) {
         GLES20.glClearColor(mBackgroundRed, mBackgroundGreen, mBackgroundBlue, 1);
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-        mFilter.init();
+        mFilterGroup.init();
     }
 
     @Override
@@ -105,8 +108,8 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
         mOutputWidth = width;
         mOutputHeight = height;
         GLES20.glViewport(0, 0, width, height);
-        GLES20.glUseProgram(mFilter.getProgram());
-        mFilter.onOutputSizeChanged(width, height);
+        GLES20.glUseProgram(mFilterGroup.getProgram());
+        mFilterGroup.onOutputSizeChanged(width, height);
         adjustImageScaling();
         synchronized (mSurfaceChangedWaiter) {
             mSurfaceChangedWaiter.notifyAll();
@@ -117,7 +120,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
     public void onDrawFrame(final GL10 gl) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         runAll(mRunOnDraw);
-        mFilter.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
+        mFilterGroup.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
         runAll(mRunOnDrawEnd);
         if (mSurfaceTexture != null) {
             mSurfaceTexture.updateTexImage();
@@ -193,14 +196,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
 
             @Override
             public void run() {
-                final GPUImageFilter oldFilter = mFilter;
-                mFilter = filter;
-                if (oldFilter != null) {
-                    oldFilter.destroy();
-                }
-                mFilter.init();
-                GLES20.glUseProgram(mFilter.getProgram());
-                mFilter.onOutputSizeChanged(mOutputWidth, mOutputHeight);
+                mFilterGroup.replaceFilter(0, filter);
             }
         });
     }

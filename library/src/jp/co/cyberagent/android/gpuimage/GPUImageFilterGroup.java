@@ -18,7 +18,6 @@ package jp.co.cyberagent.android.gpuimage;
 
 import android.annotation.SuppressLint;
 import android.opengl.GLES20;
-import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -85,6 +84,22 @@ public class GPUImageFilterGroup extends GPUImageFilter {
 
         if( mFilters.remove(aFilter) ){
             aFilter.destroy();
+        }
+    }
+
+    public void replaceFilter(GPUImageFilter aFilter) {
+        int idx = mFilters.indexOf(aFilter);
+        replaceFilter(idx, aFilter);
+    }
+
+    public void replaceFilter(int idx, GPUImageFilter aFilter) {
+         if (aFilter == null || idx < 0 || mFilters.size() <= idx ) {
+            return;
+        }
+
+        GPUImageFilter oldFilter = mFilters.set(idx, aFilter);
+        if( oldFilter != null ){
+            oldFilter.destroy();
         }
     }
 
