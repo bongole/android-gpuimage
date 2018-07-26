@@ -15,8 +15,10 @@ public class GPUImageEffectMaskFilter extends GPUImageFilterGroup {
     @Override
     public void onDraw(int textureId, FloatBuffer cubeBuffer, FloatBuffer textureBuffer) {
         super.onDraw(textureId, cubeBuffer, textureBuffer);
-        mAlphaBlendFilter.setSecondTexture(getLastDrawnTexture(), getLastDrawnTextureBuffer());
-        mAlphaBlendFilter.onDraw(textureId, cubeBuffer, textureBuffer);
+        if( mAlphaBlendFilter.getBitmap() != null ) {
+            mAlphaBlendFilter.setSecondTexture(getLastDrawnTexture(), getLastDrawnTextureBuffer());
+            mAlphaBlendFilter.onDraw(textureId, cubeBuffer, textureBuffer);
+        }
     }
 
     @Override
@@ -37,15 +39,15 @@ public class GPUImageEffectMaskFilter extends GPUImageFilterGroup {
         mAlphaBlendFilter.destroy();
     }
 
-    public void setBitmap(final Bitmap bitmap) {
+    public void setMask(final Bitmap bitmap) {
         mAlphaBlendFilter.setBitmap(bitmap);
     }
 
-    public Bitmap getBitmap() {
+    public Bitmap getMask() {
         return mAlphaBlendFilter.getBitmap();
     }
 
-    public void recycleBitmap() {
+    public void recycleMask() {
         mAlphaBlendFilter.recycleBitmap();
     }
 }
