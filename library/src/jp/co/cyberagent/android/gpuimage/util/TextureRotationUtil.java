@@ -16,6 +16,8 @@
 
 package jp.co.cyberagent.android.gpuimage.util;
 
+import java.nio.FloatBuffer;
+
 import jp.co.cyberagent.android.gpuimage.Rotation;
 
 public class TextureRotationUtil {
@@ -120,11 +122,26 @@ public class TextureRotationUtil {
         return rotatedTex;
     }
 
+    public static float[] flip(final FloatBuffer texCoords, boolean flipHorizontal, boolean flipVertical){
+        float[] rotatedTex = new float[texCoords.capacity()];
+        texCoords.get(rotatedTex, 0, rotatedTex.length);
+        if (flipHorizontal) {
+             rotatedTex[0] = flip(rotatedTex[0]);
+             rotatedTex[2] = flip(rotatedTex[2]);
+             rotatedTex[4] = flip(rotatedTex[4]);
+             rotatedTex[6] = flip(rotatedTex[6]);
+        }
+        if (flipVertical) {
+            rotatedTex[1] = flip(rotatedTex[1]);
+            rotatedTex[3] = flip(rotatedTex[3]);
+            rotatedTex[5] = flip(rotatedTex[5]);
+            rotatedTex[7] = flip(rotatedTex[7]);
+        }
+
+        return rotatedTex;
+    }
 
     private static float flip(final float i) {
-        if (i == 0.0f) {
-            return 1.0f;
-        }
-        return 0.0f;
+        return Math.abs(i - 1.0f);
     }
 }

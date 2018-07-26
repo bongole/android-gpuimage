@@ -37,27 +37,24 @@ public class GPUImageFilterGroup extends GPUImageFilter {
     private List<GPUImageFilter> mFilters = new ArrayList<>();
     private int[] mFrameBuffers;
     private int[] mFrameBufferTextures;
+    private int mLastDrawnTexture = OpenGlUtils.NO_TEXTURE;
 
-    private final FloatBuffer mGLCubeBuffer;
-    private final FloatBuffer mGLTextureBuffer;
+    private FloatBuffer mGLCubeBuffer;
+    private FloatBuffer mGLTextureBuffer;
+
+    public GPUImageFilterGroup(final String vertexShader, final String fragmentShader) {
+        super(vertexShader, fragmentShader);
+        setUp();
+    }
 
     /**
      * Instantiates a new GPUImageFilterGroup with no filters.
      */
     public GPUImageFilterGroup() {
-        this(null);
+        setUp();
     }
 
-    /**
-     * Instantiates a new GPUImageFilterGroup with the given filters.
-     *
-     * @param filters the filters which represent this filter
-     */
-    public GPUImageFilterGroup(List<GPUImageFilter> filters) {
-        if( filters != null ){
-            mFilters = filters;
-        }
-
+    private void setUp(){
         mGLCubeBuffer = ByteBuffer.allocateDirect(CUBE.length * 4)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
@@ -122,6 +119,8 @@ public class GPUImageFilterGroup extends GPUImageFilter {
     @Override
     public void onDestroy() {
         destroyFramebuffers();
+        mLastDrawnTexture = OpenGlUtils.NO_TEXTURE;
+
         for (GPUImageFilter filter : mFilters) {
             filter.destroy();
         }
@@ -206,7 +205,9 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, savedFrameBuffer, 0);
 
         int i = 0;
-        int previousTexture = textureId;
+        mLastDrawnTexture = textureId;
+        FloatBuffer tb = textureBuffer;
+        FloatBuffer cb = cubeBuffer;
         int w = getOutputWidth();
         int h = getOutputHeight();
         for ( GPUImageFilter filter : mFilters ){
@@ -219,13 +220,11 @@ public class GPUImageFilterGroup extends GPUImageFilter {
             GLES20.glClearColor(0, 0, 0, 0);
             GLES20.glViewport(0, 0, w, h);
 
-            if( i == 0 ) {
-                filter.onDraw(previousTexture, cubeBuffer, textureBuffer);
-            } else {
-                filter.onDraw(previousTexture, mGLCubeBuffer, mGLTextureBuffer);
-            }
+            filter.onDraw(mLastDrawnTexture, cb, tb);
 
-            previousTexture = mFrameBufferTextures[ i % 2 ];
+            cb = mGLCubeBuffer;
+            tb = mGLTextureBuffer;
+            mLastDrawnTexture = mFrameBufferTextures[ i % 2 ];
             i++;
         }
 
@@ -233,8 +232,20 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glViewport(0, 0, w, h);
 
-        super.onDraw(previousTexture, mGLCubeBuffer, mGLTextureBuffer);
-     }
+        super.onDraw(mLastDrawnTexture, cb, tb);
+    }
+
+    public int getLastDrawnTexture() {
+        return mLastDrawnTexture;
+    }
+
+    public FloatBuffer getLastDrawnCubeBuffer() {
+        return mGLCubeBuffer;
+    }
+
+    public FloatBuffer getLastDrawnTextureBuffer() {
+        return mGLTextureBuffer;
+    }
 
     /**
      * Gets the filters.

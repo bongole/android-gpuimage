@@ -17,12 +17,11 @@ public class GPUImageVFlipFilter extends GPUImageFilter {
         mGLTextureBuffer = ByteBuffer.allocateDirect(TEXTURE_NO_ROTATION.length * 4)
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
-        float[] vflip = TextureRotationUtil.getRotation(Rotation.NORMAL, false, true);
-        mGLTextureBuffer.put(vflip).position(0);
     }
 
     @Override
     public void onDraw(int textureId, FloatBuffer cubeBuffer, FloatBuffer textureBuffer) {
+        mGLTextureBuffer.put(TextureRotationUtil.flip(textureBuffer, false, true)).position(0);
         super.onDraw(textureId, cubeBuffer, mGLTextureBuffer);
     }
 }
