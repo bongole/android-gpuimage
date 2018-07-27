@@ -73,6 +73,8 @@ public class GPUImageThreeInputFilter extends GPUImageFilter {
         mFilterInputTextureUniform3 = GLES20.glGetUniformLocation(getProgram(), "inputImageTexture3"); // This does assume a name of "inputImageTexture3" for third input texture in the fragment shader
         GLES20.glEnableVertexAttribArray(mFilterSecondTextureCoordinateAttribute);
         GLES20.glEnableVertexAttribArray(mFilterThirdTextureCoordinateAttribute);
+
+        setBitmap(mBitmap);
     }
 
     public void setSecondTexture(int secondTexture, FloatBuffer secondTextureCoordinatesBuffer) {

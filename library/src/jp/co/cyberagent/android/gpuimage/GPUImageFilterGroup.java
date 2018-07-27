@@ -117,7 +117,7 @@ public class GPUImageFilterGroup extends GPUImageFilter {
      * @see jp.co.cyberagent.android.gpuimage.GPUImageFilter#onDestroy()
      */
     @Override
-    public void onDestroy() {
+    synchronized public void onDestroy() {
         destroyFramebuffers();
         mLastDrawnTexture = OpenGlUtils.NO_TEXTURE;
 
@@ -145,7 +145,7 @@ public class GPUImageFilterGroup extends GPUImageFilter {
      * int)
      */
     @Override
-    public void onOutputSizeChanged(final int width, final int height) {
+    synchronized public void onOutputSizeChanged(final int width, final int height) {
         super.onOutputSizeChanged(width, height);
 
         if (mFrameBuffers != null) {
@@ -194,7 +194,7 @@ public class GPUImageFilterGroup extends GPUImageFilter {
      */
     @SuppressLint("WrongCall")    
     @Override
-    public void onDraw(final int textureId, final FloatBuffer cubeBuffer,
+    synchronized public void onDraw(final int textureId, final FloatBuffer cubeBuffer,
                        final FloatBuffer textureBuffer) {
         runPendingOnDrawTasks();
         if (!isInitialized() || mFrameBuffers == null || mFrameBufferTextures == null) {
