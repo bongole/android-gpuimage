@@ -73,10 +73,6 @@ public class GPUImageThreeInputFilter extends GPUImageFilter {
         mFilterInputTextureUniform3 = GLES20.glGetUniformLocation(getProgram(), "inputImageTexture3"); // This does assume a name of "inputImageTexture3" for third input texture in the fragment shader
         GLES20.glEnableVertexAttribArray(mFilterSecondTextureCoordinateAttribute);
         GLES20.glEnableVertexAttribArray(mFilterThirdTextureCoordinateAttribute);
-
-        if (mBitmap != null&&!mBitmap.isRecycled()) {
-            setBitmap(mBitmap);
-        }
     }
 
     public void setSecondTexture(int secondTexture, FloatBuffer secondTextureCoordinatesBuffer) {
@@ -85,19 +81,20 @@ public class GPUImageThreeInputFilter extends GPUImageFilter {
     }
 
     public void setBitmap(final Bitmap bitmap) {
-        if ( bitmap == null || (bitmap != null && bitmap.isRecycled()) ) {
+        if ( bitmap == null || bitmap.isRecycled() ) {
             return;
         }
+
         mBitmap = bitmap;
+
         runOnDraw(new Runnable() {
             public void run() {
-                if (mFilterSourceTexture3 == OpenGlUtils.NO_TEXTURE) {
-                    if (bitmap == null || bitmap.isRecycled()) {
-                        return;
-                    }
-                    GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
-                    mFilterSourceTexture3 = OpenGlUtils.loadTexture(bitmap, OpenGlUtils.NO_TEXTURE, false);
+                if (mBitmap == null || mBitmap.isRecycled()) {
+                    return;
                 }
+
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
+                mFilterSourceTexture3 = OpenGlUtils.loadTexture(mBitmap, mFilterSourceTexture3, false);
             }
         });
     }
@@ -107,19 +104,19 @@ public class GPUImageThreeInputFilter extends GPUImageFilter {
     }
 
     public void recycleBitmap() {
-        if (mBitmap != null && !mBitmap.isRecycled()) {
-            mBitmap.recycle();
-            mBitmap = null;
+        if (mBitmap == null || mBitmap.isRecycled()) {
+            return;
         }
+
+        mBitmap.recycle();
+        mBitmap = null;
     }
 
     public void onDestroy() {
         super.onDestroy();
-        GLES20.glDeleteTextures(1, new int[]{
-                mFilterSourceTexture3
-        }, 0);
-        mFilterSourceTexture3 = OpenGlUtils.NO_TEXTURE;
+        GLES20.glDeleteTextures(1, new int[]{ mFilterSourceTexture3 }, 0);
         mFilterSourceTexture2 = OpenGlUtils.NO_TEXTURE;
+        mFilterSourceTexture3 = OpenGlUtils.NO_TEXTURE;
     }
 
     @Override
