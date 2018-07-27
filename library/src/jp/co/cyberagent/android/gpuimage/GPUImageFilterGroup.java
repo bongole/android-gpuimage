@@ -202,7 +202,9 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         }
 
         int[] savedFrameBuffer = new int[1];
+        float[] savedClearColor = new float[4];
         GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, savedFrameBuffer, 0);
+        GLES20.glGetFloatv(GLES20.GL_COLOR_CLEAR_VALUE, savedClearColor, 0);
 
         int i = 0;
         mLastDrawnTexture = textureId;
@@ -217,7 +219,8 @@ public class GPUImageFilterGroup extends GPUImageFilter {
             }
 
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mFrameBuffers[ i % 2 ]);
-            GLES20.glClearColor(0, 0, 0, 0);
+            GLES20.glClearColor(savedClearColor[0], savedClearColor[1], savedClearColor[2], savedClearColor[3]);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
             GLES20.glViewport(0, 0, w, h);
 
             filter.onDraw(mLastDrawnTexture, cb, tb);
@@ -229,7 +232,7 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         }
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, savedFrameBuffer[0]);
-        GLES20.glClearColor(0, 0, 0, 0);
+        GLES20.glClearColor(savedClearColor[0], savedClearColor[1], savedClearColor[2], savedClearColor[3]);
         GLES20.glViewport(0, 0, w, h);
 
         super.onDraw(mLastDrawnTexture, cb, tb);
