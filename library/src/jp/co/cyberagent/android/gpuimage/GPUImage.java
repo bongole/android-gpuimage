@@ -22,27 +22,29 @@ import android.content.Context;
 import android.content.pm.ConfigurationInfo;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
 import android.media.ExifInterface;
-import android.media.MediaScannerConnection;
 import android.net.Uri;
+import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.AsyncTask;
 import android.os.Build;
-import android.os.Environment;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.provider.MediaStore;
 import android.view.Display;
 import android.view.WindowManager;
 
 import java.io.*;
 import java.net.URL;
-import java.util.List;
-import java.util.concurrent.Semaphore;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+
+import static javax.microedition.khronos.opengles.GL10.GL_RGBA;
+import static javax.microedition.khronos.opengles.GL10.GL_UNSIGNED_BYTE;
 
 /**
  * The main accessor for GPUImage functionality. This class helps to do common
@@ -51,6 +53,8 @@ import java.util.concurrent.Semaphore;
 public class GPUImage {
     private final Context mContext;
     private final GPUImageRenderer mRenderer;
+    private final HandlerThread mHandlerThread;
+    private final Handler mHandler;
     private GLSurfaceView mGlSurfaceView;
     private GPUImageFilter mFilter;
     private Bitmap mCurrentBitmap;
@@ -69,6 +73,9 @@ public class GPUImage {
         mContext = context;
         mFilter = new GPUImageFilter();
         mRenderer = new GPUImageRenderer(mFilter);
+        mHandlerThread = new HandlerThread("GPUImage Image Save Handler Thread");
+        mHandlerThread.start();
+        mHandler = new Handler(mHandlerThread.getLooper());
     }
 
     /**
@@ -263,13 +270,16 @@ public class GPUImage {
         return path;
     }
 
+    public interface OnGeneratedBitmapListener {
+        public void onGenerated(Bitmap bitmap);
+    }
+
     /**
      * Gets the current displayed image with applied filter as a Bitmap.
      *
-     * @return the current image with filter applied
      */
-    public Bitmap getBitmapWithFilterApplied() {
-        return getBitmapWithFilterApplied(mCurrentBitmap);
+    public void getBitmapWithFilterApplied(OnGeneratedBitmapListener generatedBitmapListener) {
+        getBitmapWithFilterApplied(mCurrentBitmap, generatedBitmapListener);
     }
 
     /**
@@ -278,119 +288,86 @@ public class GPUImage {
      * @param bitmap the bitmap on which the current filter should be applied
      * @return the bitmap with filter applied
      */
-    public Bitmap getBitmapWithFilterApplied(final Bitmap bitmap) {
-        if (mGlSurfaceView != null) {
-            mRenderer.deleteImage();
-            mRenderer.runOnDraw(new Runnable() {
+    private void getBitmapWithFilterApplied(final Bitmap bitmap, final OnGeneratedBitmapListener generatedBitmapListener) {
+        final int[] savedFrameBuffer = new int[1];
+        final int[] savedTexture = new int[1];
+        final int[] frameBuffer = new int[1];
+        final int[] texture = new int[1];
 
-                @Override
-                public void run() {
-                    synchronized(mFilter) {
-                        mFilter.destroy();
-                        mFilter.notify();
-                    }
-                }
-            });
-            synchronized(mFilter) {
-                requestRender();
-                try {
-                    mFilter.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+        mRenderer.runOnDraw(new Runnable() {
+            @Override
+            public void run() {
+                GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, savedFrameBuffer, 0);
+                GLES20.glGetIntegerv(GLES20.GL_TEXTURE_BINDING_2D, savedTexture, 0);
+
+                GLES20.glGenFramebuffers(1, frameBuffer, 0);
+                GLES20.glGenTextures(1, texture, 0);
+
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, bitmap.getWidth(), bitmap.getHeight(), 0,
+                            GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                            GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                            GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                            GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                            GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, frameBuffer[0]);
+                GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                            GLES20.GL_TEXTURE_2D, texture[0], 0);
+
+                GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+
+                mRenderer.deleteImageImmediately();
+                mRenderer.setImageBitmapImmediately(bitmap, false);
+                mRenderer.forceOnSurfaceChanged(bitmap.getWidth(), bitmap.getHeight());
             }
-        }
+        });
 
-        GPUImageRenderer renderer = new GPUImageRenderer(mFilter);
-        renderer.setRotation(Rotation.NORMAL,
-                mRenderer.isFlippedHorizontally(), mRenderer.isFlippedVertically());
-        renderer.setScaleType(mScaleType);
-        PixelBuffer buffer = new PixelBuffer(bitmap.getWidth(), bitmap.getHeight());
-        buffer.setRenderer(renderer);
-        renderer.setImageBitmap(bitmap, false);
-        Bitmap result = buffer.getBitmap();
-        mFilter.destroy();
-        renderer.deleteImage();
-        buffer.destroy();
+        mRenderer.runOnDrawEnd(new Runnable() {
+            @Override
+            public void run() {
+                int w = bitmap.getWidth();
+                int h = bitmap.getHeight();
+                ByteBuffer bb = ByteBuffer.allocate(w * h * 4);
+                GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb);
+                Bitmap tmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                tmp.copyPixelsFromBuffer(bb);
+                Matrix matrix = new Matrix();
+                matrix.postScale(1, -1);
+                final Bitmap result = Bitmap.createBitmap(tmp, 0, 0, tmp.getWidth(), tmp.getHeight(), matrix, true);
 
-        mRenderer.setFilter(mFilter);
-        if (mCurrentBitmap != null) {
-            mRenderer.setImageBitmap(mCurrentBitmap, false);
-        }
+                tmp.recycle();
+                bb.clear();
+                tmp = null;
+                bb = null;
+
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        generatedBitmapListener.onGenerated(result);
+                    }
+                });
+
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, savedFrameBuffer[0]);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_BINDING_2D, savedTexture[0]);
+                runOnGLThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        GLES20.glDeleteFramebuffers(1, frameBuffer, 0);
+                        GLES20.glDeleteTextures(1, texture, 0);
+                    }
+                });
+
+                mRenderer.forceOnSurfaceChanged(mRenderer.getFrameWidth(), mRenderer.getFrameHeight());
+                requestRender();
+            }
+        });
+
         requestRender();
-
-        return result;
-    }
-
-    /**
-     * Gets the images for multiple filters on a image. This can be used to
-     * quickly get thumbnail images for filters. <br>
-     * Whenever a new Bitmap is ready, the listener will be called with the
-     * bitmap. The order of the calls to the listener will be the same as the
-     * filter order.
-     *
-     * @param bitmap the bitmap on which the filters will be applied
-     * @param filters the filters which will be applied on the bitmap
-     * @param listener the listener on which the results will be notified
-     */
-    public static void getBitmapForMultipleFilters(final Bitmap bitmap,
-            final List<GPUImageFilter> filters, final ResponseListener<Bitmap> listener) {
-        if (filters.isEmpty()) {
-            return;
-        }
-        GPUImageRenderer renderer = new GPUImageRenderer(filters.get(0));
-        renderer.setImageBitmap(bitmap, false);
-        PixelBuffer buffer = new PixelBuffer(bitmap.getWidth(), bitmap.getHeight());
-        buffer.setRenderer(renderer);
-
-        for (GPUImageFilter filter : filters) {
-            renderer.setFilter(filter);
-            listener.response(buffer.getBitmap());
-            filter.destroy();
-        }
-        renderer.deleteImage();
-        buffer.destroy();
-    }
-
-    /**
-     * Deprecated: Please use
-     * {@link GPUImageView#saveToPictures(String, String, jp.co.cyberagent.android.gpuimage.GPUImageView.OnPictureSavedListener)}
-     *
-     * Save current image with applied filter to Pictures. It will be stored on
-     * the default Picture folder on the phone below the given folderName and
-     * fileName. <br>
-     * This method is async and will notify when the image was saved through the
-     * listener.
-     *
-     * @param folderName the folder name
-     * @param fileName the file name
-     * @param listener the listener
-     */
-    @Deprecated
-    public void saveToPictures(final String folderName, final String fileName,
-            final OnPictureSavedListener listener) {
-        saveToPictures(mCurrentBitmap, folderName, fileName, listener);
-    }
-
-    /**
-     * Deprecated: Please use
-     * {@link GPUImageView#saveToPictures(String, String, jp.co.cyberagent.android.gpuimage.GPUImageView.OnPictureSavedListener)}
-     *
-     * Apply and save the given bitmap with applied filter to Pictures. It will
-     * be stored on the default Picture folder on the phone below the given
-     * folerName and fileName. <br>
-     * This method is async and will notify when the image was saved through the
-     * listener.
-     *
-     * @param bitmap the bitmap
-     * @param folderName the folder name
-     * @param fileName the file name
-     * @param listener the listener
-     */
-    @Deprecated
-    public void saveToPictures(final Bitmap bitmap, final String folderName, final String fileName,
-            final OnPictureSavedListener listener) {
-        new SaveTask(bitmap, folderName, fileName, listener).execute();
     }
 
     /**
@@ -426,66 +403,6 @@ public class GPUImage {
             Display display = windowManager.getDefaultDisplay();
             return display.getHeight();
         }
-    }
-
-    @Deprecated
-    private class SaveTask extends AsyncTask<Void, Void, Void> {
-
-        private final Bitmap mBitmap;
-        private final String mFolderName;
-        private final String mFileName;
-        private final OnPictureSavedListener mListener;
-        private final Handler mHandler;
-
-        public SaveTask(final Bitmap bitmap, final String folderName, final String fileName,
-                final OnPictureSavedListener listener) {
-            mBitmap = bitmap;
-            mFolderName = folderName;
-            mFileName = fileName;
-            mListener = listener;
-            mHandler = new Handler();
-        }
-
-        @Override
-        protected Void doInBackground(final Void... params) {
-            Bitmap result = getBitmapWithFilterApplied(mBitmap);
-            saveImage(mFolderName, mFileName, result);
-            return null;
-        }
-
-        private void saveImage(final String folderName, final String fileName, final Bitmap image) {
-            File path = Environment
-                    .getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-            File file = new File(path, folderName + "/" + fileName);
-            try {
-                file.getParentFile().mkdirs();
-                image.compress(CompressFormat.JPEG, 80, new FileOutputStream(file));
-                MediaScannerConnection.scanFile(mContext,
-                        new String[] {
-                            file.toString()
-                        }, null,
-                        new MediaScannerConnection.OnScanCompletedListener() {
-                            @Override
-                            public void onScanCompleted(final String path, final Uri uri) {
-                                if (mListener != null) {
-                                    mHandler.post(new Runnable() {
-
-                                        @Override
-                                        public void run() {
-                                            mListener.onPictureSaved(uri);
-                                        }
-                                    });
-                                }
-                            }
-                        });
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public interface OnPictureSavedListener {
-        void onPictureSaved(Uri uri);
     }
 
     private class LoadImageUriTask extends LoadImageTask {

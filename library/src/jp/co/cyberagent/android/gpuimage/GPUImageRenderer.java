@@ -107,6 +107,10 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
     public void onSurfaceChanged(final GL10 gl, final int width, final int height) {
         mOutputWidth = width;
         mOutputHeight = height;
+        forceOnSurfaceChanged(mOutputWidth, mOutputHeight);
+    }
+
+    public void forceOnSurfaceChanged(final int width, final int height) {
         GLES20.glViewport(0, 0, width, height);
         GLES20.glUseProgram(mFilterGroup.getProgram());
         mFilterGroup.onOutputSizeChanged(width, height);
@@ -201,21 +205,50 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
         });
     }
 
+    public void deleteImageImmediately() {
+        if( mGLTextureId != NO_IMAGE ) {
+            GLES20.glDeleteTextures(1, new int[]{
+                    mGLTextureId
+            }, 0);
+            mGLTextureId = NO_IMAGE;
+        }
+    }
+
     public void deleteImage() {
         runOnDraw(new Runnable() {
 
             @Override
             public void run() {
-                GLES20.glDeleteTextures(1, new int[]{
-                        mGLTextureId
-                }, 0);
-                mGLTextureId = NO_IMAGE;
+                deleteImageImmediately();
             }
         });
     }
 
     public void setImageBitmap(final Bitmap bitmap) {
         setImageBitmap(bitmap, true);
+    }
+
+    public void setImageBitmapImmediately(final Bitmap bitmap, final boolean recycle) {
+        Bitmap resizedBitmap = null;
+        if (bitmap.getWidth() % 2 == 1) {
+            resizedBitmap = Bitmap.createBitmap(bitmap.getWidth() + 1, bitmap.getHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas can = new Canvas(resizedBitmap);
+            can.drawARGB(0x00, 0x00, 0x00, 0x00);
+            can.drawBitmap(bitmap, 0, 0, null);
+            mAddedPadding = 1;
+        } else {
+            mAddedPadding = 0;
+        }
+
+        mGLTextureId = OpenGlUtils.loadTexture(
+                resizedBitmap != null ? resizedBitmap : bitmap, mGLTextureId, recycle);
+        if (resizedBitmap != null) {
+            resizedBitmap.recycle();
+        }
+        mImageWidth = bitmap.getWidth();
+        mImageHeight = bitmap.getHeight();
+        adjustImageScaling();
     }
 
     public void setImageBitmap(final Bitmap bitmap, final boolean recycle) {
@@ -227,26 +260,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
 
             @Override
             public void run() {
-                Bitmap resizedBitmap = null;
-                if (bitmap.getWidth() % 2 == 1) {
-                    resizedBitmap = Bitmap.createBitmap(bitmap.getWidth() + 1, bitmap.getHeight(),
-                            Bitmap.Config.ARGB_8888);
-                    Canvas can = new Canvas(resizedBitmap);
-                    can.drawARGB(0x00, 0x00, 0x00, 0x00);
-                    can.drawBitmap(bitmap, 0, 0, null);
-                    mAddedPadding = 1;
-                } else {
-                    mAddedPadding = 0;
-                }
-
-                mGLTextureId = OpenGlUtils.loadTexture(
-                        resizedBitmap != null ? resizedBitmap : bitmap, mGLTextureId, recycle);
-                if (resizedBitmap != null) {
-                    resizedBitmap.recycle();
-                }
-                mImageWidth = bitmap.getWidth();
-                mImageHeight = bitmap.getHeight();
-                adjustImageScaling();
+                setImageBitmapImmediately(bitmap, recycle);
             }
         });
     }

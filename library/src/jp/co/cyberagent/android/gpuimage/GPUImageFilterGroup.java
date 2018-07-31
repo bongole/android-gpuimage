@@ -146,6 +146,11 @@ public class GPUImageFilterGroup extends GPUImageFilter {
      */
     @Override
     synchronized public void onOutputSizeChanged(final int width, final int height) {
+        int[] savedTexture2D = new int[1];
+        int[] savedFrameBuffer = new int[1];
+        GLES20.glGetIntegerv(GLES20.GL_TEXTURE_BINDING_2D, savedTexture2D, 0);
+        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, savedFrameBuffer, 0);
+
         super.onOutputSizeChanged(width, height);
 
         if (mFrameBuffers != null) {
@@ -183,8 +188,8 @@ public class GPUImageFilterGroup extends GPUImageFilter {
                     GLES20.GL_TEXTURE_2D, mFrameBufferTextures[i], 0);
         }
 
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, savedTexture2D[0]);
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, savedFrameBuffer[0]);
     }
 
     /*
