@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static jp.co.cyberagent.android.gpuimage.GPUImageRenderer.CUBE;
@@ -98,6 +99,16 @@ public class GPUImageFilterGroup extends GPUImageFilter {
         if( oldFilter != null ){
             oldFilter.destroy();
         }
+    }
+
+    public void swapFilter(GPUImageFilter aFilter, GPUImageFilter bFilter) {
+        int aIndex = mFilters.indexOf(aFilter);
+        int bIndex = mFilters.indexOf(bFilter);
+        if( aIndex < 0 || bIndex < 0 ){
+            return;
+        }
+
+        Collections.swap(mFilters, aIndex, bIndex);
     }
 
     /*
