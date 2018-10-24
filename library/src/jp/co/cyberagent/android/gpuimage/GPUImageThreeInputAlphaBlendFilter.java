@@ -15,7 +15,7 @@ public class GPUImageThreeInputAlphaBlendFilter extends GPUImageThreeInputFilter
             "   lowp vec4 textureColor2 = texture2D(inputImageTexture2, textureCoordinate2);\n" +
             "   lowp vec4 textureColor3 = texture2D(inputImageTexture3, textureCoordinate3);\n" +
             "\n" +
-            "   gl_FragColor = vec4(mix(textureColor.rgb, textureColor2.rgb, textureColor3.a), textureColor.a);\n" +
+            "   gl_FragColor = vec4(mix(textureColor.rgb, textureColor2.rgb, 1.0 - textureColor3.a), textureColor.a);\n" +
             " }";
 
         public GPUImageThreeInputAlphaBlendFilter(){
