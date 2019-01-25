@@ -289,83 +289,17 @@ public class GPUImage {
      * @return the bitmap with filter applied
      */
     private void getBitmapWithFilterApplied(final Bitmap bitmap, final OnGeneratedBitmapListener generatedBitmapListener) {
-        final int[] savedFrameBuffer = new int[1];
-        final int[] savedTexture = new int[1];
-        final int[] frameBuffer = new int[1];
-        final int[] texture = new int[1];
-
-        mRenderer.runOnDraw(new Runnable() {
+        mRenderer.generatedBitmapListener = new OnGeneratedBitmapListener() {
             @Override
-            public void run() {
-                GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, savedFrameBuffer, 0);
-                GLES20.glGetIntegerv(GLES20.GL_TEXTURE_BINDING_2D, savedTexture, 0);
-
-                GLES20.glGenFramebuffers(1, frameBuffer, 0);
-                GLES20.glGenTextures(1, texture, 0);
-
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, bitmap.getWidth(), bitmap.getHeight(), 0,
-                            GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
-                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
-                            GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
-                            GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
-                            GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-                GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
-                            GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, frameBuffer[0]);
-                GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
-                            GLES20.GL_TEXTURE_2D, texture[0], 0);
-
-                GLES20.glDisable(GLES20.GL_DEPTH_TEST);
-
-                mRenderer.deleteImageImmediately();
-                mRenderer.setImageBitmapImmediately(bitmap, false);
-                mRenderer.forceOnSurfaceChanged(bitmap.getWidth(), bitmap.getHeight());
-            }
-        });
-
-        mRenderer.runOnDrawEnd(new Runnable() {
-            @Override
-            public void run() {
-                int w = bitmap.getWidth();
-                int h = bitmap.getHeight();
-                ByteBuffer bb = ByteBuffer.allocate(w * h * 4);
-                GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb);
-                Bitmap tmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                tmp.copyPixelsFromBuffer(bb);
-                Matrix matrix = new Matrix();
-                matrix.postScale(1, -1);
-                final Bitmap result = Bitmap.createBitmap(tmp, 0, 0, tmp.getWidth(), tmp.getHeight(), matrix, true);
-
-                tmp.recycle();
-                bb.clear();
-                tmp = null;
-                bb = null;
-
+            public void onGenerated(final Bitmap result) {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
                         generatedBitmapListener.onGenerated(result);
                     }
                 });
-
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, savedFrameBuffer[0]);
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_BINDING_2D, savedTexture[0]);
-                runOnGLThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        GLES20.glDeleteFramebuffers(1, frameBuffer, 0);
-                        GLES20.glDeleteTextures(1, texture, 0);
-                    }
-                });
-
-                mRenderer.forceOnSurfaceChanged(mRenderer.getFrameWidth(), mRenderer.getFrameHeight());
-                requestRender();
             }
-        });
+        };
 
         requestRender();
     }

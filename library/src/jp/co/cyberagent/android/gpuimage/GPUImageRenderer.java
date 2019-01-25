@@ -19,12 +19,14 @@ package jp.co.cyberagent.android.gpuimage;
 import android.annotation.TargetApi;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.PreviewCallback;
 import android.hardware.Camera.Size;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView.Renderer;
+import android.util.Log;
 
 import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
@@ -77,6 +79,8 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
     private float mBackgroundGreen = 0;
     private float mBackgroundBlue = 0;
 
+    public GPUImage.OnGeneratedBitmapListener generatedBitmapListener = null;
+
     public GPUImageRenderer(final GPUImageFilter filter) {
         mFilterGroup = new GPUImageFilterGroup();
         mFilterGroup.addFilter(filter);
@@ -120,8 +124,67 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
         }
     }
 
+    private void generateBitmap(){
+        if( 0 < mImageHeight && 0 < mImageWidth ) {
+            final int[] frameBuffer = new int[1];
+            final int[] texture = new int[1];
+
+            GLES20.glGenFramebuffers(1, frameBuffer, 0);
+            GLES20.glGenTextures(1, texture, 0);
+
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture[0]);
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, mImageWidth, mImageHeight, 0,
+                    GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                    GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                    GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                    GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+            GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D,
+                    GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, frameBuffer[0]);
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                    GLES20.GL_TEXTURE_2D, texture[0], 0);
+
+            GLES20.glDisable(GLES20.GL_DEPTH_TEST);
+
+            forceOnSurfaceChanged(mImageWidth, mImageHeight);
+
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+            mFilterGroup.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
+
+            ByteBuffer bb = ByteBuffer.allocate(mImageWidth * mImageHeight * 4);
+            GLES20.glReadPixels(0, 0, mImageWidth, mImageHeight, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, bb);
+            Bitmap tmp = Bitmap.createBitmap(mImageWidth, mImageHeight, Bitmap.Config.ARGB_8888);
+            tmp.copyPixelsFromBuffer(bb);
+            Matrix matrix = new Matrix();
+            matrix.postScale(1, -1);
+            final Bitmap result = Bitmap.createBitmap(tmp, 0, 0, tmp.getWidth(), tmp.getHeight(), matrix, true);
+
+            tmp.recycle();
+            bb.clear();
+            tmp = null;
+            bb = null;
+
+            generatedBitmapListener.onGenerated(result);
+            generatedBitmapListener = null;
+
+            GLES20.glDeleteFramebuffers(1, frameBuffer, 0);
+            GLES20.glDeleteTextures(1, texture, 0);
+
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            forceOnSurfaceChanged(getFrameWidth(), getFrameHeight());
+        }
+    }
+
     @Override
     public void onDrawFrame(final GL10 gl) {
+        if( generatedBitmapListener != null ) {
+            generateBitmap();
+        }
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         runAll(mRunOnDraw);
         mFilterGroup.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
