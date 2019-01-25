@@ -126,6 +126,7 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
 
     private void generateBitmap(){
         if( 0 < mImageHeight && 0 < mImageWidth ) {
+
             final int[] frameBuffer = new int[1];
             final int[] texture = new int[1];
 
@@ -181,12 +182,12 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
 
     @Override
     public void onDrawFrame(final GL10 gl) {
+        runAll(mRunOnDraw);
         if( generatedBitmapListener != null ) {
             generateBitmap();
         }
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
-        runAll(mRunOnDraw);
         mFilterGroup.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
         runAll(mRunOnDrawEnd);
         if (mSurfaceTexture != null) {
